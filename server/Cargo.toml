@@ -1,5 +1,5 @@
 [package]
-name = "iracing-websocket"
+name = "iracing-websocket-server"
 version = "0.1.0"
 authors = ["Leo Adamek <leo@adamek.me>"]
 edition = "2018"

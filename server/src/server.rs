@@ -2,7 +2,7 @@
 
 use actix::prelude::*;
 use crate::session::SessionDetails;
-use serde::Serialize;
+use serde::{Deserialize,Serialize};
 
 
 // Messages are encoded as (and passed as) strings.
@@ -20,17 +20,21 @@ pub struct TelemetryServer {
     session_data: Option<SessionDetails>
 }
 
-#[derive(Message,Serialize,Clone)]
+#[derive(Message,Debug,Default,Serialize,Deserialize,Clone)]
 #[rtype(result = "()")]
 pub struct TelemetryData {
+    pub air_temperature: f32,
+    pub state: i32,
+    pub flags: u32,
+    pub track_temperature: f32,
     pub car_class_positions: Vec<i32>,
     pub car_positions: Vec<i32>,
-    pub car_gear: Vec<i32>,
-    pub car_rpm: Vec<f32>,
-    pub car_steer: Vec<f32>,
-    pub car_lap: Vec<i32>,
-    pub car_lap_perc: Vec<f32>,
-    pub car_on_pit_road: Vec<bool>
+    pub car_gears: Vec<i32>,
+    pub car_rpms: Vec<f32>,
+    pub car_steers: Vec<f32>,
+    pub car_laps: Vec<i32>,
+    pub car_laps_perc: Vec<f32>,
+    pub car_pits: Vec<bool>
 }
 
 #[derive(Message, Debug)]
