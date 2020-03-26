@@ -24,13 +24,12 @@ pub fn main() {
 
     env_logger::builder().filter_level(log::LevelFilter::Debug).init();
 
-
     let system = System::new("Exporter");
 
     Arbiter::spawn(async {
         info!("Connecting to service");
         let (rsp, framed) =
-            Client::new().ws("ws://127.0.0.1:8080/source").connect().await
+            Client::new().ws("ws://127.0.0.1:8088/source").connect().await
                 .map_err(|e| { error!("Unable to connect to socket"); }).unwrap();
 
         let (sink, stream) = framed.split();
@@ -42,10 +41,9 @@ pub fn main() {
 
         info!("Connecting to iRacing");
         let src = reader::IRacingReader::new(get_iracing_connection()).start();
-        let reader = reader::TelemetryReader::new( src.clone().recipient(), wr.clone().recipient() );
-        let session_reader = reader::SessionReader::new(src.recipient(), wr.recipient()).start();
-        let reader_addr = reader.start();
-
+        let reader = reader::TelemetryReader::new(Duration::from_millis(500), src.clone().recipient(), wr.clone().recipient() );
+        reader::SessionReader::new(src.recipient(), wr.recipient()).start();
+        reader.start();
     });
 
     info!("Starting System");
@@ -66,7 +64,7 @@ fn get_iracing_connection() -> iracing::Connection {
                 break;
            }
            Err(e) => {
-               error!("Unable to get iRacing Connection. Is iRacing Running?");
+               error!("Unable to get iRacing Connection. Is iRacing Running? {}", e);
                sleep(Duration::from_secs(2));
            }
        }

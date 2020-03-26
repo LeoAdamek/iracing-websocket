@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use actix::Message;
-
 ///
 /// Session Details
 /// 
@@ -152,7 +151,7 @@ pub struct Session {
     pub session_number: u64, // Session Number
 
     #[serde(rename = "SessionLaps")]
-    laps: Option<u64>, // Laps, may be string or number, use `max_laps()` to determine
+    laps: serde_json::Value, // Laps, may be string or number, use `max_laps()` to determine
 
     #[serde(rename = "SessionTime")]
     pub time: String, // Time limit
@@ -161,7 +160,30 @@ pub struct Session {
 
     #[serde(rename = "SessionTrackRubberState")]
     pub track_rubber_state: String,
+
+    #[serde(rename = "ResultsPositions")]
+    pub results: Vec<SessionResult>
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct SessionResult {
+    pub position: i32,
+    pub class_position: i32,
+    pub car_idx: i32,
+    pub lap: i32,
+    pub time: f32,
+    pub fastest_lap: i32,
+    pub fastest_time: f32,
+    pub last_time: f32,
+    pub laps_led: i32,
+    pub laps_complete: i32,
+    pub laps_driven: f32,
+    pub incidents: i32,
+    pub reason_out_id: i32,
+    pub reason_out_str: String
+}
+
 
 ///
 /// Details of Player driver, and other drivers.Deserialize
@@ -310,6 +332,6 @@ impl Session {
     /// Returns an Some(u64) when there is a maximum number of laps.
     /// Returns None for unlimited laps.
     pub fn max_laps(&self) -> Option<u64> {
-        self.laps
+        self.laps.as_u64()
     }
 }

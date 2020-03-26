@@ -17,7 +17,7 @@ pub enum Message {
 #[derive(Debug,Clone)]
 pub struct TelemetryServer {
     connections: Vec<Recipient<Message>>,
-    session_data: Option<SessionDetails>
+    pub session_data: Option<SessionDetails>
 }
 
 #[derive(Message,Debug,Default,Serialize,Deserialize,Clone)]
@@ -26,6 +26,7 @@ pub struct TelemetryData {
     pub air_temperature: f32,
     pub state: i32,
     pub flags: u32,
+    pub session_number: i32,
     pub track_temperature: f32,
     pub car_class_positions: Vec<i32>,
     pub car_positions: Vec<i32>,
@@ -75,6 +76,8 @@ impl Handler<Connect>  for TelemetryServer {
         let id: usize = 0;
 
         self.connections.insert(id, msg.addr);
+
+        info!("There are now {} connected users", self.connections.len());
 
         id
     }

@@ -5,6 +5,7 @@ use actix::prelude::*;
 use actix_web_actors::ws;
 
 use crate::server;
+use crate::session;
 use serde_json::from_str;
 
 #[derive(Clone,Debug)]
@@ -36,7 +37,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Source {
 
                         match from_str::<server::TelemetryData>(telem_pkt) {
                             Ok(t) =>  {
-                               info!("Telemetry: {:?}", t);
                                self.server.do_send(t) 
                             }
                             Err(e) => {
@@ -47,7 +47,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Source {
                     } 
 
                     'S' => {
+                        let session_pkt = &raw[1..];
 
+                        match from_str::<session::SessionDetails>(session_pkt) {
+                            Ok(s) => {
+                                self.server.do_send(s)
+                            },
+
+                            Err(e) => {
+                                error!("Invalid Session: {}", e);
+                            }
+                        };
                     }
 
                     a @ _ => {

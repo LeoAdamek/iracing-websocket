@@ -6,9 +6,6 @@ use iracing::telemetry::Value;
 use iracing::states::Flags;
 use iracing;
 
-const TELEMETRY_FREQUENCY: Duration = Duration::from_millis(100);
-
-
 #[derive(Message,Debug,Default,Serialize,Deserialize,Clone)]
 #[rtype(result = "()")]
 pub struct TelemetryMessage {
@@ -16,6 +13,7 @@ pub struct TelemetryMessage {
     pub state: i32,
     pub flags: u32,
     pub track_temperature: f32,
+    pub session_number: i32,
     pub car_class_positions: Vec<i32>,
     pub car_positions: Vec<i32>,
     pub car_gears: Vec<i32>,
@@ -40,7 +38,8 @@ pub struct SessionRequest;
 
 pub struct TelemetryReader {
     writer: Recipient<TelemetryMessage>,
-    src: Recipient<TelemetryRequest>
+    src: Recipient<TelemetryRequest>,
+    interval: Duration
 }
 
 impl Actor for TelemetryReader {
@@ -52,15 +51,15 @@ impl Actor for TelemetryReader {
 }
 
 impl TelemetryReader {
-    pub fn new(src: Recipient<TelemetryRequest>, writer_addr: Recipient<TelemetryMessage>) -> Self {
-        TelemetryReader { src: src, writer: writer_addr }
+    pub fn new(intr: Duration, src: Recipient<TelemetryRequest>, writer_addr: Recipient<TelemetryMessage>) -> Self {
+        TelemetryReader { src: src, writer: writer_addr, interval: intr }
     }
 
     /// Telemetry read loop
     /// 
     /// Reads telemetry data and sends it to the Writer
     pub unsafe fn read_telemetry(&mut self, ctx: &mut <Self as Actor>::Context) {
-            ctx.run_interval(TELEMETRY_FREQUENCY, |act, ctx| {
+            ctx.run_interval(self.interval, |act, ctx| {
             act.src.send(TelemetryRequest).into_actor(act).then(|res, act, _ctx| {
                 match res {
                     Ok(t) => {
@@ -96,7 +95,7 @@ impl Actor for SessionReader {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
-        ctx.run_interval(Duration::from_secs(5), |act, ctx| { 
+        ctx.run_interval(Duration::from_secs(2), |act, ctx| { 
             act.src.send(SessionRequest).into_actor(act).then(|res, act, _ctx| {
                 match res {
                     Ok(s) => {
@@ -144,7 +143,7 @@ impl Handler<TelemetryRequest> for IRacingReader {
                 let car_class_positions = telem.get("CarIdxClassPosition").unwrap();
                 let car_laps = telem.get("CarIdxLap").unwrap();
                 let car_laps_perc = telem.get("CarIdxLapDistPct").unwrap();
-                let car_pits = telem.get("CarIdxOnPitRoad").unwrap();
+                let _car_pits = telem.get("CarIdxOnPitRoad").unwrap();
                 let car_steers = telem.get("CarIdxSteer").unwrap();
                 let car_gears = telem.get("CarIdxGear").unwrap();
                 let car_rpms = telem.get("CarIdxRPM").unwrap();
@@ -152,15 +151,13 @@ impl Handler<TelemetryRequest> for IRacingReader {
                 let track_temp: f32 = telem.get("TrackTemp").unwrap_or(Value::FLOAT(-273f32)).into();
                 let state: i32 = telem.get("SessionState").unwrap_or(Value::INT(0i32)).into();
                 let raw_flags: u32 = telem.get("SessionFlags").unwrap_or(Value::BITS(0u32)).into();
-
-                let flags = Flags::from_bits(raw_flags);
-
-                debug!("Flags = {:?} (Raw = {:b})", flags, raw_flags);
+                let session_num: i32 = telem.get("SessionNum").unwrap_or(Value::INT(0i32)).into();
 
                 let data = TelemetryMessage {
                     air_temperature: air_temperature,
                     flags: raw_flags,
                     track_temperature: track_temp,
+                    session_number: session_num,
                     state: state,
                     car_positions: match car_positions { Value::IntVec(ints) => ints, _ => vec![0i32; 64] },
                     car_class_positions: match car_class_positions { Value::IntVec(ints) => ints, _ => vec![0i32; 64] },
