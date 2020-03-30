@@ -4,7 +4,7 @@ extern crate actix_web_actors;
 extern crate env_logger;
 
 use actix_web::Responder;
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, middleware};
 use actix_web_actors::ws;
 use actix::{Actor, Addr};
 
@@ -23,7 +23,7 @@ pub struct AppState {
 
 #[actix_rt::main]
 pub async fn main() -> io::Result<()> {
-    env_logger::builder().filter_level(log::LevelFilter::Info).init();
+    env_logger::init();
 
     info!("Initalizing Telemetry Server");
 
@@ -31,6 +31,7 @@ pub async fn main() -> io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(middleware::Logger::default())
             .data(state.clone())
             .service(web::resource("/telemetry").to(connect_client))
             .service(web::resource("/source").to(connect_source))
@@ -38,7 +39,7 @@ pub async fn main() -> io::Result<()> {
     }).bind("0.0.0.0:8088")?.run().await
 }
 
-async fn get_session(req: HttpRequest, state: web::Data<AppState>) -> impl Responder {
+async fn get_session(_req: HttpRequest, _state: web::Data<AppState>) -> impl Responder {
     web::Json(())
 }
 
@@ -47,6 +48,7 @@ async fn connect_client(req: HttpRequest, stream: web::Payload, state: web::Data
 }
 
 async fn connect_source(req: HttpRequest, stream: web::Payload, state: web::Data<AppState>) -> Result<HttpResponse, Error> {
+    debug!("Telemetry Streaming Request: {:?}", req);
     ws::start(source::Source::new(state.get_ref().server_addr.clone()), &req, stream)
 }
 

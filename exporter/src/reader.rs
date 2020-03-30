@@ -3,7 +3,6 @@ use serde::{Serialize, Deserialize};
 use actix::prelude::*;
 use iracing::session::SessionDetails;
 use iracing::telemetry::Value;
-use iracing::states::Flags;
 use iracing;
 
 #[derive(Message,Debug,Default,Serialize,Deserialize,Clone)]
@@ -12,6 +11,7 @@ pub struct TelemetryMessage {
     pub air_temperature: f32,
     pub state: i32,
     pub flags: u32,
+    pub time_remaining: f64,
     pub track_temperature: f32,
     pub session_number: i32,
     pub car_class_positions: Vec<i32>,
@@ -61,9 +61,9 @@ impl TelemetryReader {
     pub unsafe fn read_telemetry(&mut self, ctx: &mut <Self as Actor>::Context) {
             ctx.run_interval(self.interval, |act, ctx| {
             act.src.send(TelemetryRequest).into_actor(act).then(|res, act, _ctx| {
-                match res {
+                let _ = match res {
                     Ok(t) => {
-                        info!("Got Telem");
+                        debug!("Got Telem");
                         act.writer.do_send(t)
                     },
 
@@ -97,9 +97,9 @@ impl Actor for SessionReader {
     fn started(&mut self, ctx: &mut <Self as Actor>::Context) {
         ctx.run_interval(Duration::from_secs(2), |act, ctx| { 
             act.src.send(SessionRequest).into_actor(act).then(|res, act, _ctx| {
-                match res {
+                let _ = match res {
                     Ok(s) => {
-                        info!("Got Session");
+                        debug!("Got Session");
                         act.writer.do_send(s)
                     },
 
@@ -143,7 +143,6 @@ impl Handler<TelemetryRequest> for IRacingReader {
                 let car_class_positions = telem.get("CarIdxClassPosition").unwrap();
                 let car_laps = telem.get("CarIdxLap").unwrap();
                 let car_laps_perc = telem.get("CarIdxLapDistPct").unwrap();
-                let _car_pits = telem.get("CarIdxOnPitRoad").unwrap();
                 let car_steers = telem.get("CarIdxSteer").unwrap();
                 let car_gears = telem.get("CarIdxGear").unwrap();
                 let car_rpms = telem.get("CarIdxRPM").unwrap();
@@ -152,6 +151,27 @@ impl Handler<TelemetryRequest> for IRacingReader {
                 let state: i32 = telem.get("SessionState").unwrap_or(Value::INT(0i32)).into();
                 let raw_flags: u32 = telem.get("SessionFlags").unwrap_or(Value::BITS(0u32)).into();
                 let session_num: i32 = telem.get("SessionNum").unwrap_or(Value::INT(0i32)).into();
+                let time_remaining: f64 = telem.get("SessionTimeRemain").unwrap_or(Value::DOUBLE(86400f64)).into();
+
+                let tr = Duration::from_secs_f64(time_remaining);
+
+                debug!("Time Remaining: {:?}", tr);
+
+
+                let car_pits: Vec<bool> = match telem.get("CarIdxOnPitRoad") {
+                    None => vec![false; 64],
+                    Some(pits) => {
+                        match pits {
+                            Value::BoolVec(bv) => bv,
+                            Value::IntVec(iv) => {
+                                info!("Car Pits: {:?}", iv);
+                                iv.iter().map(|i| i > &0i32).collect()
+                            },
+
+                            _ => vec![false; 64]
+                        }
+                    }
+                };
 
                 let data = TelemetryMessage {
                     air_temperature: air_temperature,
@@ -159,9 +179,10 @@ impl Handler<TelemetryRequest> for IRacingReader {
                     track_temperature: track_temp,
                     session_number: session_num,
                     state: state,
+                    time_remaining: time_remaining,
                     car_positions: match car_positions { Value::IntVec(ints) => ints, _ => vec![0i32; 64] },
                     car_class_positions: match car_class_positions { Value::IntVec(ints) => ints, _ => vec![0i32; 64] },
-                    car_pits: vec![false; 64],
+                    car_pits: car_pits,
                     car_gears: match car_gears { Value::IntVec(ints) => ints, _ => vec![0i32; 64] },
                     car_rpms: match car_rpms { Value::FloatVec(floats) => floats, _ => vec![0f32; 64] },
                     car_laps: match car_laps { Value::IntVec(ints) => ints, _ => vec![0i32; 64] },

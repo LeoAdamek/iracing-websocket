@@ -28,11 +28,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Source {
         };
 
         match payload {
+            ws::Message::Close(_) => {
+                info!("Closing souce stream");
+                ctx.stop();
+            }
+
             ws::Message::Text(txt) => {
                 let raw = txt.as_str();
 
                 match txt.chars().next().unwrap() {
                     'T' => {
+                        trace!("Got Telemetry");
                         let telem_pkt = &raw[1..];
 
                         match from_str::<server::TelemetryData>(telem_pkt) {
@@ -47,6 +53,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Source {
                     } 
 
                     'S' => {
+                        trace!("Got Session");
                         let session_pkt = &raw[1..];
 
                         match from_str::<session::SessionDetails>(session_pkt) {
@@ -66,12 +73,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Source {
                 }
             }
 
-            ws::Message::Close(_) => {
-                ctx.stop();
-            }
-
             _ => ()
-        }
+        };
     }
 }
 

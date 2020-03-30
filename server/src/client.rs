@@ -9,6 +9,7 @@ use serde_json::to_string as json;
 
 pub struct WsTelemetryClient {
     hb: Instant,
+    id: usize,
     server: Addr<server::TelemetryServer>
 }
 
@@ -25,9 +26,9 @@ impl Actor for WsTelemetryClient {
 
         self.server.send(server::Connect {
             addr: addr.recipient()
-        }).into_actor(self).then(|res, _act, ctx| { 
+        }).into_actor(self).then(|res, act, ctx| { 
             match res {
-                Ok(_) => (),
+                Ok(id) => act.id = id,
                 _ => ctx.stop(),
             }
 
@@ -36,6 +37,9 @@ impl Actor for WsTelemetryClient {
     }
 
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
+        self.server.do_send(server::Disconnect{
+            id: self.id
+        });
         Running::Stop
     }
 }
@@ -90,6 +94,7 @@ impl WsTelemetryClient {
     pub fn new(server_addr: Addr<server::TelemetryServer>) -> Self {
         Self {
             hb: Instant::now(),
+            id: 0,
             server: server_addr
         }
     }

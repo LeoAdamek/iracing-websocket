@@ -1,5 +1,6 @@
 //! `TelemetryServer` is an actor that maintains the client connections and manages data streams.
 
+use std::collections::BTreeMap;
 use actix::prelude::*;
 use crate::session::SessionDetails;
 use serde::{Deserialize,Serialize};
@@ -16,7 +17,8 @@ pub enum Message {
 
 #[derive(Debug,Clone)]
 pub struct TelemetryServer {
-    connections: Vec<Recipient<Message>>,
+    connections: BTreeMap<usize, Recipient<Message>>,
+    pub cnt: usize,
     pub session_data: Option<SessionDetails>
 }
 
@@ -27,6 +29,7 @@ pub struct TelemetryData {
     pub state: i32,
     pub flags: u32,
     pub session_number: i32,
+    pub time_remaining: f32,
     pub track_temperature: f32,
     pub car_class_positions: Vec<i32>,
     pub car_positions: Vec<i32>,
@@ -44,12 +47,20 @@ pub struct Connect {
     pub addr: Recipient<Message>
 }
 
+#[derive(Message, Debug)]
+#[rtype(result = "()")]
+pub struct Disconnect {
+    pub id: usize
+}
+
+
 
 impl Default for TelemetryServer {
     fn default() -> Self {
         Self {
             session_data: None,
-            connections: Vec::new()
+            cnt: 0,
+            connections: BTreeMap::new()
         }
     }
 }
@@ -57,7 +68,7 @@ impl Default for TelemetryServer {
 
 impl TelemetryServer {
     fn broadcast(&self, msg: &Message) {
-        for con in self.connections.iter() {
+        for con in self.connections.values() {
             let _ = con.do_send(msg.to_owned());
         }
     }
@@ -73,7 +84,8 @@ impl Handler<Connect>  for TelemetryServer {
     fn handle(&mut self, msg: Connect, _ctx: &mut Context<Self>) -> Self::Result {
         info!("User Connected: {:?}", msg);
 
-        let id: usize = 0;
+        self.cnt += 1;
+        let id = self.cnt;
 
         self.connections.insert(id, msg.addr);
 
@@ -81,6 +93,19 @@ impl Handler<Connect>  for TelemetryServer {
 
         id
     }
+}
+
+impl Handler<Disconnect> for TelemetryServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Disconnect, _ctx: &mut Context<Self>) -> Self::Result {
+        info!("User disconnected");
+
+        self.connections.remove(&msg.id);
+
+        info!("There are now {} connected users", self.connections.len());
+    }
+
 }
 
 impl Handler<TelemetryData> for TelemetryServer {

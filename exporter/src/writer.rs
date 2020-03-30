@@ -2,8 +2,8 @@ use actix::prelude::*;
 use actix_codec::Framed;
 use actix::io::SinkWrite;
 use crate::reader::{TelemetryMessage, SessionMessage};
-use awc::{error::WsProtocolError, ws::{Codec,Frame,Message}, BoxedSocket, Client};
-use futures::stream::{SplitSink, StreamExt};
+use awc::{error::WsProtocolError, ws::{Codec,Frame,Message}, BoxedSocket};
+use futures::stream::SplitSink;
 use serde_json::to_string as json;
 
 pub struct WebsocketWriter(SinkWrite<Message, SplitSink<Framed<BoxedSocket, Codec>, Message>>);
@@ -35,7 +35,10 @@ impl Handler<TelemetryMessage> for WebsocketWriter {
 
         content.push_str(&data);
 
-        self.0.write(Message::Text(content));
+        match self.0.write(Message::Text(content)) {
+            Ok(_) => (),
+            Err(e) => warn!("Unable to send telemtry: {}", e)
+        }
     }
 }
 
@@ -51,7 +54,10 @@ impl Handler<SessionMessage> for WebsocketWriter {
 
         content.push_str(&data);
 
-        self.0.write(Message::Text(content));
+       match self.0.write(Message::Text(content)) {
+           Ok(_) => (),
+           Err(e) => warn!("Unable to send session: {}", e)
+       };
     }
 }
 
