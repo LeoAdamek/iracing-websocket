@@ -32,9 +32,12 @@ pub struct SessionMessage(SessionDetails);
 #[rtype(result = "TelemetryMessage")]
 pub struct TelemetryRequest;
 
-#[derive(Message,Debug,Serialize,Deserialize,Clone)]
-#[rtype(result = "SessionMessage")]
+#[derive(Debug,Serialize,Deserialize,Clone)]
 pub struct SessionRequest;
+
+impl Message for SessionRequest {
+    type Result = Option<SessionMessage>;
+}
 
 pub struct TelemetryReader {
     writer: Recipient<TelemetryMessage>,
@@ -99,8 +102,17 @@ impl Actor for SessionReader {
             act.src.send(SessionRequest).into_actor(act).then(|res, act, _ctx| {
                 let _ = match res {
                     Ok(s) => {
-                        debug!("Got Session");
-                        act.writer.do_send(s)
+                        match s {
+                            Some(s) => {
+                                debug!("Got Session");
+                                act.writer.do_send(s)
+                            },
+
+                            None => {
+                                warn!("Didn't get session");
+                                Ok(())
+                            }
+                        }
                     },
 
                     Err(e) => {
@@ -204,9 +216,18 @@ impl Handler<TelemetryRequest> for IRacingReader {
 }
 
 impl Handler<SessionRequest> for IRacingReader {
-    type Result = MessageResult<SessionRequest>;
+    type Result = Option<SessionMessage>;
 
     fn handle(&mut self, _: SessionRequest, _: &mut Self::Context) -> Self::Result {
-        MessageResult( SessionMessage( self.conn.session_info().unwrap() ) )
+        match self.conn.session_info() {
+            Ok(session) => {
+                Some( SessionMessage( session ) )
+            }
+
+            Err(e) => {
+                error!("Unable to get session info: {}", e);
+                None
+            }
+        }
     }
 }
