@@ -151,7 +151,14 @@ impl Handler<TelemetryRequest> for IRacingReader {
                 let state: i32 = telem.get("SessionState").unwrap_or(Value::INT(0i32)).into();
                 let raw_flags: u32 = telem.get("SessionFlags").unwrap_or(Value::BITS(0u32)).into();
                 let session_num: i32 = telem.get("SessionNum").unwrap_or(Value::INT(0i32)).into();
-                let time_remaining: f64 = telem.get("SessionTimeRemain").unwrap_or(Value::DOUBLE(86400f64)).into();
+                let mut time_remaining: f64 = telem.get("SessionTimeRemain").unwrap_or(Value::DOUBLE(86400f64)).into();
+                
+
+                // Time remaining cannot be less than zero.
+                if time_remaining < 0f64 {
+                    time_remaining = 0f64;
+                }
+                
 
                 let tr = Duration::from_secs_f64(time_remaining);
 
